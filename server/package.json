@@ -1,0 +1,31 @@
+{
+  "name": "mtp-platform-server",
+  "version": "3.0.0",
+  "private": true,
+  "type": "module",
+  "description": "MTP Platform — Backend (Express + MongoDB + ethers.js)",
+  "scripts": {
+    "dev":          "node --watch src/index.js",
+    "start":        "node src/index.js",
+    "init-db":      "node src/initDb.js",
+    "test":         "node --test --test-reporter=spec tests/*.test.js",
+    "test:unit":    "node --test --test-reporter=spec tests/unit.test.js tests/crypto.test.js tests/oracle.test.js tests/cyberpac.test.js",
+    "test:int":     "node --test --test-reporter=spec tests/auth.test.js tests/validations.test.js tests/payments.test.js",
+    "test:watch":   "node --test --watch tests/*.test.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "ethers": "^6.13.4",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.8.4",
+    "multer": "^1.4.5-lts.1"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^10.1.2",
+    "supertest": "^7.0.0"
+  },
+  "engines": { "node": ">=18" }
+}
