@@ -1,0 +1,117 @@
+# ════════════════════════════════════════════════════════════════
+# MTP Platform — Render Blueprint
+#
+# Este archivo le dice a Render cómo deployar automáticamente el
+# backend cuando lo conectes al repo de GitHub.
+#
+# Cómo usarlo (primera vez):
+#   1. Push del repo a GitHub
+#   2. Ir a https://dashboard.render.com/blueprints
+#   3. Click "New Blueprint Instance"
+#   4. Conectar GitHub y seleccionar este repo
+#   5. Render detecta este archivo y crea el servicio solo
+#   6. Configurar las env vars marcadas como sync:false (MONGO_URI, secrets)
+#
+# Después de eso, CADA push a main redespliega automáticamente.
+# ════════════════════════════════════════════════════════════════
+
+services:
+  # ─── Backend API ────────────────────────────────────────────
+  - type: web
+    name: mtp-platform-api
+    runtime: node
+    region: oregon          # opciones: oregon (US), frankfurt (EU), singapore (Asia)
+    plan: free              # cambiar a "starter" ($7/mes) para evitar el sleep tras 15min idle
+    branch: main
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/ping
+    autoDeploy: true        # cada push a main redeploya
+    envVars:
+      # ─── Sistema ────────────────────────────────────────
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "4000"
+
+      # ─── Auth ───────────────────────────────────────────
+      - key: JWT_SECRET
+        generateValue: true             # Render genera uno random seguro
+      - key: JWT_EXPIRES_IN
+        value: 7d
+
+      # ─── CORS ───────────────────────────────────────────
+      # Render rellena con la URL del frontend en Vercel después
+      - key: CORS_ORIGIN
+        sync: false
+
+      # ─── MongoDB Atlas ──────────────────────────────────
+      # ⚠ Cargar manualmente en el dashboard (NO commitear la password):
+      # mongodb+srv://pablorutigliano1973_db_user:PASSWORD@cluster1.tesodf.mongodb.net/pablorutigliano1973_db_user?retryWrites=true&w=majority&appName=Cluster1
+      - key: MONGO_URI
+        sync: false
+
+      # ─── Uploads ────────────────────────────────────────
+      - key: UPLOAD_DIR
+        value: ./uploads
+      - key: MAX_UPLOAD_BYTES
+        value: "8388608"
+
+      # ─── ETTIOS Blockchain ──────────────────────────────
+      - key: ETTIOS_RPC_URL
+        value: https://rpc.ettiosblockchain.io
+      - key: ETTIOS_CHAIN_ID
+        value: "2237"
+      - key: ETTIOS_CONTRACT_ADDRESS
+        sync: false           # se rellena después de deployar el smart contract
+      - key: ETTIOS_PRIVATE_KEY
+        sync: false           # ⚠ NUNCA commitear claves privadas
+
+      # ─── Redsys / CaixaBank Cyberpac ────────────────────
+      # Por defecto: credenciales TEST públicas de CaixaBank
+      # Para producción real: reemplazar en el dashboard después
+      - key: REDSYS_MERCHANT_CODE
+        value: "369581947"
+      - key: REDSYS_TERMINAL
+        value: "1"
+      - key: REDSYS_CURRENCY
+        value: "978"
+      - key: REDSYS_SECRET_KEY
+        value: sq7HjrUOBfKmC576ILgskD5srU870gJ7
+      - key: REDSYS_ENVIRONMENT
+        value: test                # cambiar a "production" cuando tengas FUC real
+      - key: REDSYS_OK_URL
+        sync: false                # ej: https://mtp-platform.vercel.app/payments/success
+      - key: REDSYS_KO_URL
+        sync: false                # ej: https://mtp-platform.vercel.app/payments/failure
+      - key: REDSYS_NOTIFICATION_URL
+        sync: false                # ej: https://mtp-platform-api.onrender.com/api/payments/notify
+
+      # ─── Bizum ──────────────────────────────────────────
+      - key: BIZUM_ENABLED
+        value: "false"
+
+      # ─── Cripto USDC/USDT ───────────────────────────────
+      - key: CRYPTO_MERCHANT_ADDRESS
+        sync: false                # tu wallet EVM para recibir pagos cripto
+      - key: CRYPTO_MIN_CONFIRMATIONS
+        value: "3"
+      - key: CRYPTO_RPC_ETHEREUM
+        value: https://ethereum-rpc.publicnode.com
+      - key: CRYPTO_RPC_POLYGON
+        value: https://polygon-rpc.com
+      - key: CRYPTO_RPC_BSC
+        value: https://bsc-dataseed.binance.org
+
+      # ─── Chainlink oracle EUR/USD ───────────────────────
+      - key: CHAINLINK_PREFERRED_CHAIN
+        value: "137"
+      - key: CHAINLINK_CACHE_TTL_MS
+        value: "300000"
+      - key: CHAINLINK_TIMEOUT_MS
+        value: "3000"
+      - key: CHAINLINK_MAX_STALENESS_S
+        value: "14400"
+      - key: CHAINLINK_FALLBACK_DISABLED
+        value: "false"

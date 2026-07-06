@@ -1,0 +1,35 @@
+{
+  "name": "mtp-platform",
+  "version": "3.0.0",
+  "description": "MTP Platform — Certificación documental con blockchain, IA y verificadores humanos",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "install:all": "npm install && (cd client && npm install) && (cd server && npm install)",
+    "client":      "cd client && npm run dev",
+    "server":      "cd server && npm run dev",
+    "init-db":     "cd server && npm run init-db",
+    "build":       "cd client && npm run build",
+    "test":        "cd server && npm test",
+    "test:unit":   "cd server && npm run test:unit",
+    "test:int":    "cd server && npm run test:int",
+    "start":       "concurrently \"npm:server\" \"npm:client\"",
+    "setup:atlas": "node scripts/setup-atlas.js",
+    "docker:up":   "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:seed": "docker compose --profile seed run --rm seed",
+    "vercel-build": "cd client && npm install && npm run build"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "ethers": "^6.13.4",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.8.4"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

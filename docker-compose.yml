@@ -1,0 +1,174 @@
+# ╔════════════════════════════════════════════════════════════════════╗
+# ║ MTP Platform — Stack completo con Docker Compose                  ║
+# ║                                                                    ║
+# ║ Servicios:                                                         ║
+# ║   • mongo          MongoDB 7 con persistencia                     ║
+# ║   • mongo-express  UI de admin para Mongo (opcional, perfil dev)  ║
+# ║   • api            Backend Node 22 + Express + Mongoose           ║
+# ║   • web            Frontend React 18 + Vite 5                     ║
+# ║                                                                    ║
+# ║ Uso:                                                               ║
+# ║   docker compose up -d                  → arranca todo            ║
+# ║   docker compose up -d --build          → reconstruye imágenes    ║
+# ║   docker compose logs -f api            → ver logs del backend    ║
+# ║   docker compose exec api npm run init-db  → cargar seed         ║
+# ║   docker compose down                   → para todo               ║
+# ║   docker compose down -v                → para + borra volúmenes  ║
+# ║                                                                    ║
+# ║ Endpoints:                                                         ║
+# ║   http://localhost:5173    Frontend                                ║
+# ║   http://localhost:4000    API                                     ║
+# ║   http://localhost:8081    Mongo Express (perfil dev)             ║
+# ║   mongodb://localhost:27017 Mongo (acceso directo)                ║
+# ╚════════════════════════════════════════════════════════════════════╝
+
+name: mtp-platform
+
+services:
+  # ─── MongoDB ──────────────────────────────────────────────────
+  mongo:
+    image: mongo:7
+    container_name: mtp-mongo
+    restart: unless-stopped
+    ports: ["27017:27017"]
+    volumes:
+      - mongo-data:/data/db
+      - mongo-config:/data/configdb
+    environment:
+      MONGO_INITDB_DATABASE: pablorutigliano1973_db_user
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks: [mtp-net]
+
+  # ─── Mongo Express UI (opcional, solo en perfil "dev") ────────
+  mongo-express:
+    image: mongo-express:latest
+    container_name: mtp-mongo-express
+    restart: unless-stopped
+    profiles: [dev]
+    ports: ["8081:8081"]
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongo
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: mtp1234
+      ME_CONFIG_OPTIONS_EDITORTHEME: ambiance
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks: [mtp-net]
+
+  # ─── Backend API ──────────────────────────────────────────────
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: mtp-api
+    restart: unless-stopped
+    ports: ["4000:4000"]
+    environment:
+      # MongoDB conectado por nombre de servicio (red interna de Docker)
+      MONGO_URI: mongodb://mongo:27017/pablorutigliano1973_db_user
+      PORT: "4000"
+      NODE_ENV: development
+
+      # Auth
+      JWT_SECRET: ${JWT_SECRET:-dev_secret_change_in_production_12345}
+      JWT_EXPIRES_IN: "7d"
+
+      # CORS — permite al frontend Vite del compose
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+
+      # Uploads
+      UPLOAD_DIR: ./uploads
+      MAX_UPLOAD_BYTES: "8388608"
+
+      # ETTIOS Blockchain
+      ETTIOS_RPC_URL: ${ETTIOS_RPC_URL:-https://rpc.ettiosblockchain.io}
+      ETTIOS_CHAIN_ID: "2237"
+      ETTIOS_CONTRACT_ADDRESS: ${ETTIOS_CONTRACT_ADDRESS:-}
+      ETTIOS_PRIVATE_KEY: ${ETTIOS_PRIVATE_KEY:-}
+
+      # Redsys (datos test oficiales de CaixaBank)
+      REDSYS_MERCHANT_CODE: ${REDSYS_MERCHANT_CODE:-369581947}
+      REDSYS_TERMINAL: "1"
+      REDSYS_CURRENCY: "978"
+      REDSYS_SECRET_KEY: ${REDSYS_SECRET_KEY:-sq7HjrUOBfKmC576ILgskD5srU870gJ7}
+      REDSYS_ENVIRONMENT: ${REDSYS_ENVIRONMENT:-test}
+      REDSYS_OK_URL: ${REDSYS_OK_URL:-http://localhost:5173/payments/success}
+      REDSYS_KO_URL: ${REDSYS_KO_URL:-http://localhost:5173/payments/failure}
+      REDSYS_NOTIFICATION_URL: ${REDSYS_NOTIFICATION_URL:-http://localhost:4000/api/payments/notify}
+
+      # Bizum
+      BIZUM_ENABLED: ${BIZUM_ENABLED:-false}
+
+      # Cripto
+      CRYPTO_MERCHANT_ADDRESS: ${CRYPTO_MERCHANT_ADDRESS:-}
+      CRYPTO_MIN_CONFIRMATIONS: "3"
+      CRYPTO_RPC_ETHEREUM: ${CRYPTO_RPC_ETHEREUM:-https://ethereum-rpc.publicnode.com}
+      CRYPTO_RPC_POLYGON: ${CRYPTO_RPC_POLYGON:-https://polygon-rpc.com}
+      CRYPTO_RPC_BSC: ${CRYPTO_RPC_BSC:-https://bsc-dataseed.binance.org}
+
+      # Chainlink oracle
+      CHAINLINK_PREFERRED_CHAIN: "137"
+      CHAINLINK_CACHE_TTL_MS: "300000"
+      CHAINLINK_TIMEOUT_MS: "3000"
+      CHAINLINK_MAX_STALENESS_S: "14400"
+      CHAINLINK_FALLBACK_DISABLED: "false"
+    volumes:
+      - api-uploads:/app/uploads
+    depends_on:
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks: [mtp-net]
+
+  # ─── Frontend Web ─────────────────────────────────────────────
+  web:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: mtp-web
+    restart: unless-stopped
+    ports: ["5173:5173"]
+    environment:
+      # Vite dev server hablando con el backend del compose
+      VITE_API_URL: ""              # vacío → usa el proxy de vite hacia /api
+      VITE_DEV_BACKEND: http://api:4000
+    depends_on:
+      api:
+        condition: service_started
+    networks: [mtp-net]
+
+  # ─── Seed runner (one-shot, perfil "seed") ────────────────────
+  seed:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: mtp-seed
+    profiles: [seed]
+    environment:
+      MONGO_URI: mongodb://mongo:27017/pablorutigliano1973_db_user
+      JWT_SECRET: dev_secret
+    command: npm run init-db
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks: [mtp-net]
+
+volumes:
+  mongo-data:
+  mongo-config:
+  api-uploads:
+
+networks:
+  mtp-net:
+    driver: bridge
