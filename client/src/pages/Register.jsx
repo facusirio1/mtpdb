@@ -9,7 +9,7 @@ export default function Register() {
   const asVerifier = params.get('as') === 'verifier';
 
   const [form, setForm] = useState({
-    full_name: '', email: '', password: '',
+    name: '', email: '', password: '',
     entity_type: asVerifier ? 'profesional' : 'empresa',
     company_name: '', document_id: '',
     sector: '', specialty: '',
@@ -48,7 +48,7 @@ export default function Register() {
             <div className="grid grid-2" style={{ gap: 10 }}>
               <div className="field">
                 <label>Nombre completo *</label>
-                <input required value={form.full_name} onChange={e => up('full_name', e.target.value)} />
+                <input required value={form.name} onChange={e => up('full_name', e.target.value)} />
               </div>
               <div className="field">
                 <label>Email *</label>
