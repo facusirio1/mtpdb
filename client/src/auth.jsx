@@ -32,7 +32,8 @@ export function AuthProvider({ children }) {
   }
 
   async function register(payload) {
-    const r = await api.post('/auth/register', payload);
+    // CORRECCIÓN: Se esparcen las propiedades del payload para evitar el anidamiento erróneo en api.js
+    const r = await api.post('/auth/register', { ...payload });
     localStorage.setItem('mtp.token', r.token);
     setUser(r.user);
     return r.user;
