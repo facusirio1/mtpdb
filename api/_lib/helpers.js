@@ -38,14 +38,6 @@ export function verifyToken(token) {
 }
 
 // ─── Auth middleware para Vercel ──────────────────────────────────
-/**
- * Verifica el JWT del header Authorization: Bearer XXX
- * Devuelve el user decoded o envía 401 y devuelve null.
- *
- * Uso:
- *   const user = requireAuth(req, res);
- *   if (!user) return; // ya se envió 401
- */
 export function requireAuth(req, res) {
   const auth = req.headers.authorization || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
@@ -64,12 +56,6 @@ export function requireAuth(req, res) {
   return decoded;
 }
 
-/**
- * Verifica que el user tenga un rol específico.
- * Uso:
- *   const user = requireRole(req, res, ['admin', 'verificador']);
- *   if (!user) return;
- */
 export function requireRole(req, res, allowedRoles) {
   const user = requireAuth(req, res);
   if (!user) return null;
@@ -115,14 +101,6 @@ export function serverError(res, error) {
 }
 
 // ─── Method matcher ──────────────────────────────────────────────
-/**
- * Handler wrapper que despacha por método HTTP.
- * Uso:
- *   export default methodDispatch({
- *     GET: async (req, res) => { ... },
- *     POST: async (req, res) => { ... },
- *   });
- */
 export function methodDispatch(handlers) {
   return async (req, res) => {
     if (applyCors(req, res)) return;
@@ -133,34 +111,39 @@ export function methodDispatch(handlers) {
       return res.status(405).json({ error: `Método ${req.method} no permitido` });
     }
 
-    // ─── Parse body defensivo ─────────────────────────────────
-    // Vercel Node runtime normalmente parsea req.body a objeto cuando
-    // Content-Type es application/json, pero hay casos edge (payloads
-    // grandes, headers mal seteados) donde llega como string o Buffer.
-    // Este parseo defensivo garantiza que req.body sea un objeto.
-    if (['POST', 'PUT', 'PATCH'].includes(req.method) && req.body != null) {
-      if (typeof req.body === 'string') {
-        try { req.body = JSON.parse(req.body); }
-        catch { req.body = {}; }
-      } else if (Buffer.isBuffer(req.body)) {
-        try { req.body = JSON.parse(req.body.toString('utf8')); }
-        catch { req.body = {}; }
-      }
-    }
-
-    // Si por alguna razón no llegó body pero es POST con content-type JSON,
-    // leerlo del stream manualmente (fallback)
-    if (['POST', 'PUT', 'PATCH'].includes(req.method) && !req.body) {
-      const ct = req.headers['content-type'] || '';
-      if (ct.includes('application/json')) {
-        try {
-          const chunks = [];
-          for await (const c of req) chunks.push(c);
-          const raw = Buffer.concat(chunks).toString('utf8');
-          req.body = raw ? JSON.parse(raw) : {};
-        } catch {
-          req.body = {};
+    // ─── Parse body unificado y ultra agresivo ───────────────────
+    if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
+      try {
+        if (req.body != null) {
+          if (typeof req.body === 'string') {
+            req.body = JSON.parse(req.body);
+          } else if (Buffer.isBuffer(req.body)) {
+            req.body = JSON.parse(req.body.toString('utf8'));
+          }
         }
+        
+        // Si el body sigue vacío o desestructurado incorrectamente, leemos el stream
+        if (!req.body || Object.keys(req.body).length === 0) {
+          const ct = req.headers['content-type'] || '';
+          if (ct.includes('application/json')) {
+            const chunks = [];
+            for await (const c of req) chunks.push(c);
+            const raw = Buffer.concat(chunks).toString('utf8');
+            if (raw) {
+              req.body = JSON.parse(raw);
+            }
+          }
+        }
+
+        // Si por un error del frontend los datos venían anidados como { body: { email, ... } }
+        // lo aplanamos de forma automática para rescatar la petición.
+        if (req.body && req.body.body && Object.keys(req.body).length === 1) {
+          req.body = req.body.body;
+        }
+
+      } catch (err) {
+        console.warn('[Parser Warning] No se pudo parsear el body:', err.message);
+        req.body = {};
       }
     }
 
