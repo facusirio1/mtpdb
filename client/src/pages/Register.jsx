@@ -48,7 +48,7 @@ export default function Register() {
             <div className="grid grid-2" style={{ gap: 10 }}>
               <div className="field">
                 <label>Nombre completo *</label>
-                <input required value={form.name} onChange={e => up('full_name', e.target.value)} />
+                <input required value={form.name} onChange={e => up('name', e.target.value)} />
               </div>
               <div className="field">
                 <label>Email *</label>
